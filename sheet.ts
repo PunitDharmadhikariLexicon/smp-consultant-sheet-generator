@@ -1,12 +1,15 @@
 import ExcelJS from "exceljs";
-import { Consultant, InputFile } from "./types";
+import { Consultant, FileData, InputFile } from "./types";
 
 const inputFile: InputFile = {
   consultants: {
     name: "Skills matrix.xlsx",
     sheet: "People Data",
   },
-  // Add Skills and Categories file when available
+  skillsCategories: {
+    name: "skills 4.xlsx",
+    sheet: "Result 1",
+  },
 };
 
 const outputFilename = "Endava-Skills-Matrix.xlsx";
@@ -14,40 +17,44 @@ const outputFilename = "Endava-Skills-Matrix.xlsx";
 (async () => {
   const consultants = await loadConsultants(inputFile.consultants);
 
-  const skillsAndCategories: Record<string, string[]> = {
-    Category1: ["skill1", "skill2"],
-    Category2: ["skill3", "skill4"],
-  };
+  const skillsAndCategories = await loadSkillsAndCategories(
+    inputFile.skillsCategories
+  );
 
   writeSkillsMatrix(outputFilename, consultants, skillsAndCategories);
 })();
 
-// async function loadSkillsAndCategories(
-//   filename: string,
-//   sheetName: string
-// ): Promise<Record<string, Record<string, string[]>>> {
-//   await workbook.xlsx.readFile(filename);
-//   const sheet = workbook.getWorksheet(sheetName);
+async function loadSkillsAndCategories(
+  file: FileData
+): Promise<Record<string, string[]>> {
+  const workbook = new ExcelJS.Workbook();
 
-//   const consultants: Consultant[] = [];
+  await workbook.xlsx.readFile(file.name);
+  const sheet = workbook.getWorksheet(file.sheet);
 
-//   if (sheet) {
-//     sheet.eachRow((row: ExcelJS.Row, rowNumber: number) => {
-//       if (rowNumber > 1) {
-//         consultants.push({
-//           fullName: row.getCell(1).value,
-//           email: row.getCell(6).value,
-//           jobTitle: row.getCell(7).value,
-//           grade: row.getCell(8).value,
-//           discipline: row.getCell(9).value,
-//           location: row.getCell(11).value,
-//         });
-//       }
-//     });
-//   }
+  const skillsCategories: Record<string, string[]> = {};
 
-//   return consultants;
-// }
+  if (sheet) {
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+    sheet.eachRow((row: ExcelJS.Row, rowNumber: number) => {
+      if (rowNumber > 1) {
+        const category = row.getCell("A").toString().trim();
+        const skill = row.getCell("B").toString().trim();
+        if (Array.isArray(skillsCategories[category])) {
+          skillsCategories[category].push(skill);
+        } else {
+          skillsCategories[category] = [skill];
+        }
+      }
+    });
+  }
+
+  for (const key in skillsCategories) {
+    skillsCategories[key].sort();
+  }
+
+  return skillsCategories;
+}
 
 const headerRowFont = {
   size: 16,
@@ -84,6 +91,7 @@ function writeSkillsMatrix(
     { header: "Grade", key: "grade", width: 20 },
     { header: "Profile Link", key: "link", width: 20 },
   ];
+  sheet1.views = [{ state: "frozen", ySplit: 1 }];
 
   const headerRow = sheet1.getRow(1);
   headerRow.font = headerRowFont;
@@ -94,6 +102,7 @@ function writeSkillsMatrix(
   };
 
   const sheet2 = workbook.addWorksheet("Skill Proficiencies");
+  sheet2.views = [{ state: "frozen", ySplit: 2, xSplit: 1 }];
 
   let currentColIndex = 2;
   const categoryRow = sheet2.getRow(1);
@@ -104,6 +113,8 @@ function writeSkillsMatrix(
   skillRow.font = headerRowFont;
 
   const consultantColumn = sheet2.getColumn("A");
+  sheet2.getCell("A2").value = "Name";
+
   consultantColumn.width = 30;
 
   Object.keys(skillsAndCategories).forEach((category) => {
@@ -119,8 +130,6 @@ function writeSkillsMatrix(
 
     currentColIndex += skills.length;
   });
-
-  sheet2.getCell("A2").value = "Name";
 
   consultants.forEach((consultant, consultantIndex) => {
     const rowIndex = consultantIndex + 3;
@@ -166,17 +175,15 @@ function writeSkillsMatrix(
       console.log(`Excel file '${filename}' created successfully.`);
     })
     .catch((err: unknown) => {
-      console.log("Error creating Excel file:", err);
+      console.error("Error creating Excel file:", err);
     });
 }
 
-async function loadConsultants(
-  consultantData: typeof inputFile.consultants
-): Promise<Consultant[]> {
+async function loadConsultants(fileData: FileData): Promise<Consultant[]> {
   const workbook = new ExcelJS.Workbook();
 
-  await workbook.xlsx.readFile(consultantData.name);
-  const sheet = workbook.getWorksheet(consultantData.sheet);
+  await workbook.xlsx.readFile(fileData.name);
+  const sheet = workbook.getWorksheet(fileData.sheet);
 
   const consultants: Consultant[] = [];
 

@@ -20,11 +20,11 @@ export type Row = {
 };
 
 export type InputFile = {
-  consultants: ConsultantData;
-  // Add Skills and Categories when available
+  consultants: FileData;
+  skillsCategories: FileData;
 };
 
-type ConsultantData = {
+export type FileData = {
   name: string;
   sheet: string;
 };
